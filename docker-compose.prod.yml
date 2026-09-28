@@ -1,0 +1,305 @@
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: infrasphere-prod-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-infrasphere}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-infrasphere}
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+      - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - infrasphere-prod-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-infrasphere} -d ${POSTGRES_DB:-infrasphere}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: infrasphere-prod-redis
+    restart: always
+    volumes:
+      - redis_prod_data:/data
+    networks:
+      - infrasphere-prod-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: infrasphere-prod-rabbitmq
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-infrasphere}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    volumes:
+      - rabbitmq_prod_data:/var/lib/rabbitmq
+    networks:
+      - infrasphere-prod-network
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  minio:
+    image: quay.io/minio/minio:latest
+    container_name: infrasphere-prod-minio
+    restart: always
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+    volumes:
+      - minio_prod_data:/data
+    networks:
+      - infrasphere-prod-network
+
+  asset-service:
+    build:
+      context: .
+      dockerfile: apps/services/asset-service/Dockerfile
+    container_name: infrasphere-prod-asset-service
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/asset_db?schema=public
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      RABBITMQ_EXCHANGE: infrastructure.events
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET_NAME: infrasphere-assets
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - infrasphere-prod-network
+
+  inspection-service:
+    build:
+      context: .
+      dockerfile: apps/services/inspection-service/Dockerfile
+    container_name: infrasphere-prod-inspection-service
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 3002
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/inspection_db?schema=public
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      RABBITMQ_EXCHANGE: infrastructure.events
+      ASSET_SERVICE_URL: http://asset-service:3001
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - infrasphere-prod-network
+
+  maintenance-service:
+    build:
+      context: .
+      dockerfile: apps/services/maintenance-service/Dockerfile
+    container_name: infrasphere-prod-maintenance-service
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 3003
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/maintenance_db?schema=public
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      RABBITMQ_EXCHANGE: infrastructure.events
+      ASSET_SERVICE_URL: http://asset-service:3001
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - infrasphere-prod-network
+
+  risk-service:
+    build:
+      context: .
+      dockerfile: apps/services/risk-service/Dockerfile
+    container_name: infrasphere-prod-risk-service
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 3004
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/risk_db?schema=public
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      RABBITMQ_EXCHANGE: infrastructure.events
+      ASSET_SERVICE_URL: http://asset-service:3001
+      INSPECTION_SERVICE_URL: http://inspection-service:3002
+      MAINTENANCE_SERVICE_URL: http://maintenance-service:3003
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - infrasphere-prod-network
+
+  ai-service:
+    build:
+      context: .
+      dockerfile: apps/services/ai-service/Dockerfile
+    container_name: infrasphere-prod-ai-service
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 3005
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      ASSET_SERVICE_URL: http://asset-service:3001
+      RISK_SERVICE_URL: http://risk-service:3004
+      INSPECTION_SERVICE_URL: http://inspection-service:3002
+      MAINTENANCE_SERVICE_URL: http://maintenance-service:3003
+    depends_on:
+      - asset-service
+      - risk-service
+    networks:
+      - infrasphere-prod-network
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: apps/services/notification-service/Dockerfile
+    container_name: infrasphere-prod-notification-service
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 3006
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/notification_db?schema=public
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      RABBITMQ_EXCHANGE: infrastructure.events
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - infrasphere-prod-network
+
+  audit-service:
+    build:
+      context: .
+      dockerfile: apps/services/audit-service/Dockerfile
+    container_name: infrasphere-prod-audit-service
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 3007
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/audit_db?schema=public
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      RABBITMQ_EXCHANGE: infrastructure.events
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - infrasphere-prod-network
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: apps/api-gateway/Dockerfile
+    container_name: infrasphere-prod-api-gateway
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      JWT_SECRET: ${JWT_SECRET}
+      ASSET_SERVICE_URL: http://asset-service:3001
+      INSPECTION_SERVICE_URL: http://inspection-service:3002
+      MAINTENANCE_SERVICE_URL: http://maintenance-service:3003
+      RISK_SERVICE_URL: http://risk-service:3004
+      AI_SERVICE_URL: http://ai-service:3005
+      NOTIFICATION_SERVICE_URL: http://notification-service:3006
+      AUDIT_SERVICE_URL: http://audit-service:3007
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
+    depends_on:
+      - asset-service
+      - inspection-service
+      - maintenance-service
+      - risk-service
+      - ai-service
+      - notification-service
+      - audit-service
+    networks:
+      - infrasphere-prod-network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+    container_name: infrasphere-prod-frontend
+    restart: always
+    depends_on:
+      - api-gateway
+    networks:
+      - infrasphere-prod-network
+
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: infrasphere-prod-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - frontend
+      - api-gateway
+    networks:
+      - infrasphere-prod-network
+
+networks:
+  infrasphere-prod-network:
+    name: infrasphere-prod-network
+    driver: bridge
+
+volumes:
+  postgres_prod_data:
+    name: infrasphere_prod_postgres_data
+  redis_prod_data:
+    name: infrasphere_prod_redis_data
+  rabbitmq_prod_data:
+    name: infrasphere_prod_rabbitmq_data
+  minio_prod_data:
+    name: infrasphere_prod_minio_data

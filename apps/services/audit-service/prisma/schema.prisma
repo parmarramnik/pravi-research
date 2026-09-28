@@ -1,0 +1,27 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  action    String   // asset.created, inspection.completed, etc.
+  entity    String   // Asset, Inspection, WorkOrder, etc.
+  entityId  String
+  actorId   String?
+  actorName String?
+  service   String
+  oldValues String?  // JSON string
+  newValues String?  // JSON string
+  ipAddress String?
+  timestamp DateTime @default(now())
+
+  @@index([entity])
+  @@index([entityId])
+  @@index([timestamp])
+  @@index([action])
+}

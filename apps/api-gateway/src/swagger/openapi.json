@@ -1,0 +1,176 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "InfraSphere Platform API",
+    "version": "1.0.0",
+    "description": "Unified Infrastructure Asset Lifecycle & Intelligence Platform - Microservices API Gateway"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "API Gateway"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/api/auth/login": {
+      "post": {
+        "summary": "Authenticate user with email and password",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": { "type": "string" },
+                  "password": { "type": "string" }
+                },
+                "required": ["email", "password"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "JWT Access token and user profile" },
+          "401": { "description": "Invalid credentials" }
+        }
+      }
+    },
+    "/api/auth/demo-users": {
+      "get": {
+        "summary": "Retrieve available demo accounts and credentials",
+        "security": [],
+        "responses": {
+          "200": { "description": "List of active demo accounts" }
+        }
+      }
+    },
+    "/api/assets": {
+      "get": {
+        "summary": "Query infrastructure assets with filters and pagination",
+        "responses": {
+          "200": { "description": "Paginated assets list" }
+        }
+      },
+      "post": {
+        "summary": "Register a new infrastructure asset",
+        "responses": {
+          "201": { "description": "Created asset" }
+        }
+      }
+    },
+    "/api/assets/map": {
+      "get": {
+        "summary": "Fetch lightweight GIS GeoJSON markers for map rendering",
+        "responses": {
+          "200": { "description": "Array of map markers" }
+        }
+      }
+    },
+    "/api/assets/{id}": {
+      "get": {
+        "summary": "Get full asset details including domain details and dependencies",
+        "responses": {
+          "200": { "description": "Asset detail object" }
+        }
+      }
+    },
+    "/api/assets/{id}/dependencies": {
+      "get": {
+        "summary": "Get asset dependency graph and failure cascade simulation",
+        "responses": {
+          "200": { "description": "Dependency graph with upstream and downstream impact" }
+        }
+      }
+    },
+    "/api/inspections": {
+      "get": {
+        "summary": "List inspections",
+        "responses": { "200": { "description": "Inspections list" } }
+      },
+      "post": {
+        "summary": "Create/schedule an inspection",
+        "responses": { "201": { "description": "Created inspection" } }
+      }
+    },
+    "/api/inspections/{id}/complete": {
+      "post": {
+        "summary": "Complete inspection, record condition and findings (publishes inspection.completed)",
+        "responses": { "200": { "description": "Completed inspection" } }
+      }
+    },
+    "/api/work-orders": {
+      "get": {
+        "summary": "List maintenance work orders",
+        "responses": { "200": { "description": "Work orders list" } }
+      },
+      "post": {
+        "summary": "Create maintenance work order",
+        "responses": { "201": { "description": "Created work order" } }
+      }
+    },
+    "/api/work-orders/{id}/complete": {
+      "post": {
+        "summary": "Complete work order (publishes workorder.completed & maintenance.completed)",
+        "responses": { "200": { "description": "Completed work order and maintenance record" } }
+      }
+    },
+    "/api/risks": {
+      "get": {
+        "summary": "List calculated deterministic risk scores",
+        "responses": { "200": { "description": "Risk scores list" } }
+      }
+    },
+    "/api/risks/matrix": {
+      "get": {
+        "summary": "Get risk distribution matrix by Risk Level vs Criticality",
+        "responses": { "200": { "description": "Risk matrix data" } }
+      }
+    },
+    "/api/risks/{assetId}/recalculate": {
+      "post": {
+        "summary": "Recalculate deterministic risk and health scores for an asset",
+        "responses": { "200": { "description": "Updated risk record" } }
+      }
+    },
+    "/api/ai/chat": {
+      "post": {
+        "summary": "Natural-language infrastructure assistant powered by Google Gemini",
+        "responses": { "200": { "description": "AI answer with facts used and suggestions" } }
+      }
+    },
+    "/api/notifications": {
+      "get": {
+        "summary": "List user notifications and critical risk alerts",
+        "responses": { "200": { "description": "Notifications list" } }
+      }
+    },
+    "/api/audit": {
+      "get": {
+        "summary": "Query immutable audit logs",
+        "responses": { "200": { "description": "Audit trail entries" } }
+      }
+    },
+    "/api/analytics/dashboard": {
+      "get": {
+        "summary": "Aggregated analytics and dashboard metrics",
+        "responses": { "200": { "description": "Dashboard statistics" } }
+      }
+    }
+  }
+}

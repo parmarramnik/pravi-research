@@ -1,0 +1,16 @@
+{
+  "name": "@infrasphere/shared-utils",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "tsx --test src/__tests__/risk.test.ts"
+  },
+  "dependencies": {
+    "@infrasphere/shared-types": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}

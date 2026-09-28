@@ -1,0 +1,55 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model WorkOrder {
+  id                 String              @id @default(uuid())
+  orderNumber        String              @unique
+  assetId            String
+  assetCode          String?
+  title              String
+  description        String
+  maintenanceType    String              // PREVENTIVE, CORRECTIVE, EMERGENCY, INSPECTION_REPAIR, REPLACEMENT, UPGRADE
+  priority           String              // LOW, NORMAL, HIGH, URGENT
+  status             String              // OPEN, ASSIGNED, IN_PROGRESS, ON_HOLD, COMPLETED, CANCELLED
+  assignedTechnician String?
+  assignedDepartment String?
+  scheduledStartDate DateTime?
+  scheduledEndDate   DateTime?
+  actualStartDate    DateTime?
+  actualEndDate      DateTime?
+  estimatedCost      Float               @default(0)
+  actualCost         Float?
+  resolutionNotes    String?
+  partsReplaced      String?             // JSON array string
+  maintenanceRecords MaintenanceRecord[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  @@index([assetId])
+  @@index([status])
+  @@index([priority])
+}
+
+model MaintenanceRecord {
+  id              String     @id @default(uuid())
+  assetId         String
+  workOrderId     String?
+  workOrder       WorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+  maintenanceType String
+  description     String
+  performedBy     String
+  completionDate  DateTime
+  cost            Float
+  conditionAfter  String     // EXCELLENT, GOOD, FAIR, POOR, CRITICAL
+  notes           String?
+  createdAt       DateTime   @default(now())
+
+  @@index([assetId])
+  @@index([workOrderId])
+}

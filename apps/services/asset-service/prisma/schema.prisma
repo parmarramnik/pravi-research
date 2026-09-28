@@ -1,0 +1,164 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Asset {
+  id                 String           @id @default(uuid())
+  assetCode          String           @unique
+  name               String
+  description        String?
+  category           String           // BUILDINGS, WATER, TRANSPORT, ELECTRICAL
+  assetType          String
+  status             String           // ACTIVE, INACTIVE, DAMAGED, CRITICAL, UNDER_REPAIR, RETIRED
+  lifecycleStatus    String           // PLANNED, PROCUREMENT, UNDER_CONSTRUCTION, INSTALLED, ACTIVE, etc.
+  condition          String           // EXCELLENT, GOOD, FAIR, POOR, CRITICAL
+  ownerDepartment    String
+  responsiblePerson  String
+  installationDate   DateTime?
+  constructionDate   DateTime?
+  purchaseCost       Float?
+  currentValue       Float?
+  expectedLifeYears  Int              @default(20)
+  warrantyStart      DateTime?
+  warrantyEnd        DateTime?
+  criticality        String           // LOW, MEDIUM, HIGH, CRITICAL
+  locationName       String
+  latitude           Float
+  longitude          Float
+  geometryType       String?          @default("Point") // Point, LineString, Polygon
+  coordinatesJson    String?          // JSON string for complex geometry coordinates
+  healthScore        Float?           @default(80)
+  riskScore          Float?           @default(20)
+
+  // 4 Domain modules relations
+  buildingDetails    BuildingDetails?
+  waterDetails       WaterDetails?
+  transportDetails   TransportDetails?
+  electricalDetails  ElectricalDetails?
+
+  // Dependencies
+  upstreamDependencies   AssetDependency[] @relation("SourceAsset")
+  downstreamDependencies AssetDependency[] @relation("TargetAsset")
+
+  // Documents
+  documents          AssetDocument[]
+
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  @@index([category])
+  @@index([status])
+  @@index([criticality])
+  @@index([ownerDepartment])
+}
+
+model BuildingDetails {
+  id                    String   @id @default(uuid())
+  assetId               String   @unique
+  asset                 Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  buildingType          String
+  numberOfFloors        Int      @default(1)
+  totalAreaSqMeters     Float
+  occupancyCapacity     Int
+  constructionYear      Int
+  structuralMaterial    String
+  fireSafetyStatus      String
+  electricityCapacityKw Float?
+  waterConnectionStatus String
+  accessibilityStatus   String
+}
+
+model WaterDetails {
+  id                  String   @id @default(uuid())
+  assetId             String   @unique
+  asset               Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  waterAssetType      String
+  capacityLiters      Float?
+  flowRateLps         Float?
+  pressureBar         Float?
+  pipeDiameterMm      Float?
+  pipeMaterial        String?
+  pumpPowerKw         Float?
+  treatmentCapacityMld Float?
+  installationDate    DateTime?
+  operatingStatus     String
+}
+
+model TransportDetails {
+  id                    String   @id @default(uuid())
+  assetId               String   @unique
+  asset                 Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  transportAssetType    String
+  roadType              String?
+  roadLengthKm          Float?
+  bridgeLengthMeters    Float?
+  bridgeWidthMeters     Float?
+  loadCapacityTons      Float?
+  numberOfLanes         Int?
+  surfaceMaterial       String?
+  trafficVolumePcuPerDay Float?
+  lightingStatus        String?
+}
+
+model ElectricalDetails {
+  id                    String   @id @default(uuid())
+  assetId               String   @unique
+  asset                 Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  electricalAssetType   String
+  voltageKv             Float
+  capacityKva           Float?
+  currentLoadAmps       Float?
+  phaseCount            Int      @default(3)
+  manufacturer          String?
+  model                 String?
+  operatingTemperatureC Float?
+  powerRatingKw         Float?
+  operatingStatus       String
+}
+
+model AssetDependency {
+  id             String   @id @default(uuid())
+  sourceAssetId  String
+  targetAssetId  String
+  relationship   String   // DEPENDS_ON, SUPPLIES, CONNECTS_TO, LOCATED_IN, SERVES, PROTECTS, REPLACED_BY
+  criticality    String   // LOW, MEDIUM, HIGH, CRITICAL
+  notes          String?
+  createdAt      DateTime @default(now())
+
+  sourceAsset    Asset    @relation("SourceAsset", fields: [sourceAssetId], references: [id], onDelete: Cascade)
+  targetAsset    Asset    @relation("TargetAsset", fields: [targetAssetId], references: [id], onDelete: Cascade)
+
+  @@index([sourceAssetId])
+  @@index([targetAssetId])
+}
+
+model AssetDocument {
+  id         String   @id @default(uuid())
+  assetId    String
+  asset      Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  fileName   String
+  fileType   String
+  fileSize   Int
+  storageKey String
+  url        String?
+  uploadedBy String
+  createdAt  DateTime @default(now())
+
+  @@index([assetId])
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         String   // ADMIN, ASSET_MANAGER, INSPECTOR, MAINTENANCE_MANAGER, VIEWER
+  department   String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+}

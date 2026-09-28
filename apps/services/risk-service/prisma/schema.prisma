@@ -1,0 +1,52 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model AssetRiskRecord {
+  id                    String   @id @default(uuid())
+  assetId               String   @unique
+  assetCode             String?
+  healthScore           Float    // 0-100 (deterministic: condition, age, inspection, maintenance)
+  riskScore             Float    // 0-100 (deterministic: probability * impact * multiplier)
+  criticality           String   // LOW, MEDIUM, HIGH, CRITICAL
+  riskLevel             String   // LOW, MEDIUM, HIGH, CRITICAL
+  maintenancePriority   String   // LOW, NORMAL, HIGH, URGENT
+  conditionScore        Float
+  ageScore              Float
+  inspectionScore       Float
+  maintenanceScore      Float
+  probabilityScore      Float
+  impactScore           Float
+  criticalityMultiplier Float
+  triggerEvent          String?
+  lastCalculatedAt      DateTime @default(now())
+
+  @@index([riskLevel])
+  @@index([maintenancePriority])
+}
+
+model RiskConfigRecord {
+  id                    String   @id @default("default")
+  conditionWeight       Float    @default(0.35)
+  ageWeight             Float    @default(0.20)
+  inspectionWeight      Float    @default(0.20)
+  maintenanceWeight     Float    @default(0.25)
+  updatedAt             DateTime @updatedAt
+}
+
+model RiskHistory {
+  id           String   @id @default(uuid())
+  assetId      String
+  healthScore  Float
+  riskScore    Float
+  riskLevel    String
+  triggerEvent String?
+  createdAt    DateTime @default(now())
+
+  @@index([assetId])
+}

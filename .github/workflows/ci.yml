@@ -1,0 +1,74 @@
+name: InfraSphere CI Pipeline
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  validate-and-test:
+    name: Lint, Type Check & Unit Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: infrasphere
+          POSTGRES_PASSWORD: infrasphere_secret
+          POSTGRES_DB: infrasphere
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+
+      rabbitmq:
+        image: rabbitmq:3-management-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: infrasphere
+          RABBITMQ_DEFAULT_PASS: infrasphere_secret
+        ports:
+          - 5672:5672
+          - 15672:15672
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Monorepo Dependencies
+        run: npm ci || npm install
+
+      - name: Build Shared Packages
+        run: |
+          npm run build --workspace=@infrasphere/shared-types
+          npm run build --workspace=@infrasphere/shared-events
+          npm run build --workspace=@infrasphere/shared-utils
+
+      - name: Run Deterministic Rule Engine Unit Tests (NO ML)
+        run: npx tsx --test packages/shared-utils/src/__tests__/risk.test.ts
+
+      - name: Build Frontend Application
+        run: npm run build --workspace=@infrasphere/frontend
+
+      - name: Verify Docker Compose Configuration
+        run: docker compose config
+
+      - name: Test Build Docker Images
+        run: |
+          docker build -t infrasphere-gateway:ci -f apps/api-gateway/Dockerfile .
+          docker build -t infrasphere-frontend:ci -f apps/frontend/Dockerfile .

@@ -1,0 +1,61 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Inspection {
+  id                 String              @id @default(uuid())
+  inspectionCode     String              @unique
+  assetId            String
+  assetCode          String?
+  inspectorName      String
+  inspectorId        String?
+  scheduledDate      DateTime
+  completedDate      DateTime?
+  status             String              // SCHEDULED, IN_PROGRESS, COMPLETED, CANCELLED
+  conditionObserved  String              // EXCELLENT, GOOD, FAIR, POOR, CRITICAL
+  overallScore       Float?              // 0-100
+  summary            String?
+  nextInspectionDate DateTime?
+  findings           InspectionFinding[]
+  documents          InspectionDoc[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  @@index([assetId])
+  @@index([status])
+}
+
+model InspectionFinding {
+  id                String     @id @default(uuid())
+  inspectionId      String
+  inspection        Inspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  title             String
+  description       String
+  severity          String     // LOW, MEDIUM, HIGH, CRITICAL
+  category          String?
+  recommendedAction String?
+  resolved          Boolean    @default(false)
+  createdAt         DateTime   @default(now())
+
+  @@index([inspectionId])
+  @@index([severity])
+}
+
+model InspectionDoc {
+  id           String     @id @default(uuid())
+  inspectionId String
+  inspection   Inspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  fileName     String
+  fileType     String
+  fileSize     Int
+  storageKey   String
+  url          String?
+  createdAt    DateTime   @default(now())
+
+  @@index([inspectionId])
+}
